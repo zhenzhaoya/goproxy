@@ -52,7 +52,7 @@ type Delegate interface {
 	// Finish 本次请求结束
 	Finish(ctx *Context)
 	// 记录错误信息
-	ErrorLog(err error)
+	ErrorLog(ctx *Context, err error, tag string)
 }
 
 var _ Delegate = &DefaultDelegate{}
@@ -78,6 +78,6 @@ func (h *DefaultDelegate) ParentProxy(req *http.Request) (*url.URL, error) {
 
 func (h *DefaultDelegate) Finish(ctx *Context) {}
 
-func (h *DefaultDelegate) ErrorLog(err error) {
+func (h *DefaultDelegate) ErrorLog(ctx *Context, err error, tag string) {
 	log.Println(err)
 }

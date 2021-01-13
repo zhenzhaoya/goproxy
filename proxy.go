@@ -215,7 +215,7 @@ func (p *Proxy) forwardHTTP(ctx *Context, rw http.ResponseWriter) {
 	ctx.Req.URL.Scheme = "http"
 	p.DoRequest(ctx, func(resp *http.Response, err error) {
 		if err != nil {
-			p.delegate.ErrorLog(fmt.Errorf("%s - HTTP请求错误: , 错误: %s", ctx.Req.URL, err))
+			p.delegate.ErrorLog(ctx, err, "HTTP请求错误")
 			rw.WriteHeader(http.StatusBadGateway)
 			return
 		}
@@ -230,19 +230,19 @@ func (p *Proxy) forwardHTTP(ctx *Context, rw http.ResponseWriter) {
 func (p *Proxy) forwardHTTPS(ctx *Context, rw http.ResponseWriter) {
 	clientConn, err := hijacker(rw)
 	if err != nil {
-		p.delegate.ErrorLog(err)
+		p.delegate.ErrorLog(ctx, err, "")
 		rw.WriteHeader(http.StatusBadGateway)
 		return
 	}
 	defer clientConn.Close()
 	_, err = clientConn.Write(tunnelEstablishedResponseLine)
 	if err != nil {
-		p.delegate.ErrorLog(fmt.Errorf("%s - HTTPS解密, 通知客户端隧道已连接失败, %s", ctx.Req.URL.Host, err))
+		p.delegate.ErrorLog(ctx, err, "HTTPS解密, 通知客户端隧道已连接失败")
 		return
 	}
 	tlsConfig, err := p.cert.GenerateTlsConfig(ctx.Req.URL.Host)
 	if err != nil {
-		p.delegate.ErrorLog(fmt.Errorf("%s - HTTPS解密, 生成证书失败: %s", ctx.Req.URL.Host, err))
+		p.delegate.ErrorLog(ctx, err, "HTTPS解密, 生成证书失败")
 		rw.WriteHeader(http.StatusBadGateway)
 		return
 	}
@@ -250,14 +250,14 @@ func (p *Proxy) forwardHTTPS(ctx *Context, rw http.ResponseWriter) {
 	tlsClientConn.SetDeadline(time.Now().Add(defaultClientReadWriteTimeout))
 	defer tlsClientConn.Close()
 	if err := tlsClientConn.Handshake(); err != nil {
-		p.delegate.ErrorLog(fmt.Errorf("%s - HTTPS解密, 握手失败: %s", ctx.Req.URL.Host, err))
+		p.delegate.ErrorLog(ctx, err, "HTTPS解密, 握手失败")
 		return
 	}
 	buf := bufio.NewReader(tlsClientConn)
 	tlsReq, err := http.ReadRequest(buf)
 	if err != nil {
 		if err != io.EOF {
-			p.delegate.ErrorLog(fmt.Errorf("%s - HTTPS解密, 读取客户端请求失败: %s", ctx.Req.URL.Host, err))
+			p.delegate.ErrorLog(ctx, err, "HTTPS解密, 读取客户端请求失败")
 		}
 		return
 	}
@@ -268,13 +268,13 @@ func (p *Proxy) forwardHTTPS(ctx *Context, rw http.ResponseWriter) {
 	ctx.Req = tlsReq
 	p.DoRequest(ctx, func(resp *http.Response, err error) {
 		if err != nil {
-			p.delegate.ErrorLog(fmt.Errorf("%s - HTTPS解密, 请求错误: %s", ctx.Req.URL, err))
+			p.delegate.ErrorLog(ctx, err, "HTTPS解密, 请求错误")
 			tlsClientConn.Write(badGateway)
 			return
 		}
 		err = resp.Write(tlsClientConn)
 		if err != nil {
-			p.delegate.ErrorLog(fmt.Errorf("%s - HTTPS解密, response写入客户端失败, %s", ctx.Req.URL, err))
+			p.delegate.ErrorLog(ctx, err, "HTTPS解密, response写入客户端失败")
 		}
 		resp.Body.Close()
 	})
@@ -284,14 +284,14 @@ func (p *Proxy) forwardHTTPS(ctx *Context, rw http.ResponseWriter) {
 func (p *Proxy) forwardTunnel(ctx *Context, rw http.ResponseWriter) {
 	clientConn, err := hijacker(rw)
 	if err != nil {
-		p.delegate.ErrorLog(err)
+		p.delegate.ErrorLog(ctx, err, "")
 		rw.WriteHeader(http.StatusBadGateway)
 		return
 	}
 	defer clientConn.Close()
 	parentProxyURL, err := p.delegate.ParentProxy(ctx.Req)
 	if err != nil {
-		p.delegate.ErrorLog(fmt.Errorf("%s - 解析代理地址错误: %s", ctx.Req.URL.Host, err))
+		p.delegate.ErrorLog(ctx, err, "解析代理地址错误")
 		rw.WriteHeader(http.StatusBadGateway)
 		return
 	}
@@ -302,7 +302,7 @@ func (p *Proxy) forwardTunnel(ctx *Context, rw http.ResponseWriter) {
 
 	targetConn, err := net.DialTimeout("tcp", targetAddr, defaultTargetConnectTimeout)
 	if err != nil {
-		p.delegate.ErrorLog(fmt.Errorf("%s - 隧道转发连接目标服务器失败: %s", ctx.Req.URL.Host, err))
+		p.delegate.ErrorLog(ctx, err, "隧道转发连接目标服务器失败")
 		rw.WriteHeader(http.StatusBadGateway)
 		return
 	}
@@ -312,7 +312,7 @@ func (p *Proxy) forwardTunnel(ctx *Context, rw http.ResponseWriter) {
 	if parentProxyURL == nil {
 		_, err = clientConn.Write(tunnelEstablishedResponseLine)
 		if err != nil {
-			p.delegate.ErrorLog(fmt.Errorf("%s - 隧道连接成功,通知客户端错误: %s", ctx.Req.URL.Host, err))
+			p.delegate.ErrorLog(ctx, err, "隧道连接成功,通知客户端错误")
 			return
 		}
 	} else {
