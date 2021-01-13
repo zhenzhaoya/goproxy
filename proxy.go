@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ouqiang/goproxy/cert"
+	"github.com/zhenzhaoya/goproxy/cert"
 )
 
 const (
@@ -142,7 +142,8 @@ var _ http.Handler = &Proxy{}
 // ServeHTTP 实现了http.Handler接口
 func (p *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.URL.Host == "" {
-		req.URL.Host = req.Host
+		p.delegate.NonproxyHandler(rw, req)
+		return
 	}
 	atomic.AddInt32(&p.clientConnNum, 1)
 	defer func() {

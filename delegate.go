@@ -40,6 +40,7 @@ func (c *Context) IsAborted() bool {
 type Delegate interface {
 	// Connect 收到客户端连接
 	Connect(ctx *Context, rw http.ResponseWriter)
+	NonproxyHandler(rw http.ResponseWriter, req *http.Request)
 	// Auth 代理身份认证
 	Auth(ctx *Context, rw http.ResponseWriter)
 	// BeforeRequest HTTP请求前 设置X-Forwarded-For, 修改Header、Body
@@ -62,6 +63,8 @@ type DefaultDelegate struct {
 }
 
 func (h *DefaultDelegate) Connect(ctx *Context, rw http.ResponseWriter) {}
+
+func (h *DefaultDelegate) NonproxyHandler(rw http.ResponseWriter, req *http.Request) {}
 
 func (h *DefaultDelegate) Auth(ctx *Context, rw http.ResponseWriter) {}
 
